@@ -1,0 +1,591 @@
+<title>Wheelhouse Phone Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: a three-count status strip and filters on top, then one spreadsheet-style grid, one call per row, scrolling sideways inside its own frame when narrow. */
+:root {
+  --bg: #f2f5f3; --surface: #ffffff; --sunk: #e8edea; --ink: #15201c; --muted: #586660; --line: #d3dbd6;
+  --accent: #0f5c4a; --accent-ink: #ffffff;
+  --new: #a14a05; --new-bg: #fcefd9; --prog: #1c4c9e; --prog-bg: #e3ebfa; --done: #2c6637; --done-bg: #e1f0e3; --danger: #b3261e;
+  --s-info: #1c4c9e; --s-grades: #7a3fa0; --s-phone: #a14a05; --s-sqmsg: #0f6f78; --s-sqform: #9a2f58;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1513; --surface: #18211e; --sunk: #121a17; --ink: #e7efeb; --muted: #97a69f; --line: #2a3733;
+  --accent: #5fc9a8; --accent-ink: #06241b;
+  --new: #f0b35a; --new-bg: #382810; --prog: #8fb4f5; --prog-bg: #16263f; --done: #86cf93; --done-bg: #142e1a; --danger: #f2877f;
+  --s-info: #8fb4f5; --s-grades: #c79be6; --s-phone: #f0b35a; --s-sqmsg: #63c9d2; --s-sqform: #ee92b5;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1513; --surface: #18211e; --sunk: #121a17; --ink: #e7efeb; --muted: #97a69f; --line: #2a3733;
+  --accent: #5fc9a8; --accent-ink: #06241b;
+  --new: #f0b35a; --new-bg: #382810; --prog: #8fb4f5; --prog-bg: #16263f; --done: #86cf93; --done-bg: #142e1a; --danger: #f2877f;
+  --s-info: #8fb4f5; --s-grades: #c79be6; --s-phone: #f0b35a; --s-sqmsg: #63c9d2; --s-sqform: #ee92b5;
+  color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.45 var(--body); padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1240px; margin-inline: auto; display: grid; gap: 18px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+h1 { font: 700 30px/1 var(--display); letter-spacing: .01em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.top-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.me-name { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+.me-name input { width: 130px; }
+
+input, select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+textarea { resize: vertical; min-height: 84px; width: 100%; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 12px; font-weight: 600; }
+a.btn { text-decoration: none; display: inline-block; }
+td .acts2 { display: flex; gap: 6px; align-items: center; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--muted); padding-inline: 6px; }
+.btn.danger { color: var(--danger); }
+.btn[disabled] { opacity: .55; cursor: default; }
+
+.banner { background: var(--new-bg); color: var(--new); border-radius: 6px; padding: 10px 12px; font-weight: 500; }
+
+.strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.stat { padding: 12px 14px; border-left: 1px solid var(--line); min-width: 0; }
+.stat:first-child { border-left: 0; }
+.stat b { display: block; font: 700 30px/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.stat.warn b { color: var(--new); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 500; display: inline-flex; gap: 7px; align-items: center; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .75; }
+.dot { width: 9px; height: 9px; border-radius: 2px; background: var(--c, var(--muted)); flex: none; }
+.filters .gap { flex: 1; }
+
+.sheet { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; white-space: nowrap; }
+tr > :first-child { border-left: 0; } tr > :last-child { border-right: 0; }
+thead th { border-top: 0; background: var(--sunk); font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); position: sticky; top: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { background: var(--sunk); color: var(--muted); text-align: center; width: 1%; font-size: 12px; }
+td.need { white-space: normal; min-width: 240px; max-width: 420px; }
+td.wrap2 { white-space: normal; min-width: 120px; overflow-wrap: anywhere; }
+td small { display: block; color: var(--muted); font-size: 12px; }
+tbody tr:hover td:not(.num) { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+tr.is-done td:not(.num) { color: var(--muted); }
+td .btn { padding: 3px 10px; font-size: 13px; }
+tr.group td { background: var(--sunk); font: 700 15px/1.2 var(--display); letter-spacing: .05em; text-transform: uppercase; padding: 8px 10px; border-left: 0; border-right: 0; }
+tr.group td .n { font: 600 12px/1 var(--body); color: var(--muted); margin-left: 8px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+tr.group.bad td { color: var(--danger); }
+.cat-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+td.empty, .empty { white-space: normal; padding: 22px 14px; color: var(--muted); }
+.tag { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--c, var(--muted)); }
+.sum { all: unset; cursor: pointer; font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sum:hover { text-decoration: underline; }
+.sum:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.who { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.state { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+.state.claimed { background: var(--prog-bg); color: var(--prog); }
+.state.done { background: var(--done-bg); color: var(--done); }
+.state.new { background: var(--new-bg); color: var(--new); }
+
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+dialog::backdrop { background: rgb(0 0 0 / .45); }
+.dlg { padding: 18px; display: grid; gap: 14px; }
+.dlg h3 { margin: 0; font: 700 22px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label, .lbl { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dlg .acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.body-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notes { display: grid; gap: 8px; }
+.note { border-left: 2px solid var(--line); padding-left: 10px; overflow-wrap: anywhere; }
+.note small { color: var(--muted); display: block; }
+.noteform { display: flex; gap: 8px; }
+.noteform input { flex: 1; }
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 6px; font-weight: 500; max-width: calc(100vw - 32px); z-index: 5; }
+
+@media (max-width: 860px) {
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .stat { padding: 10px; } .stat b { font-size: 24px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Wheelhouse Phone Board</h1>
+    <div class="top-actions">
+      <span class="me-name" id="whoAmI" hidden></span>
+      <button class="btn quiet" id="signOutBtn" type="button" hidden>Sign out</button>
+      <button class="btn primary" id="signInBtn" type="button" hidden>Sign in with Google</button>
+      <label class="me-name" id="nameWrap" hidden>Your name <input id="myName" maxlength="30" placeholder="e.g. Sam" autocomplete="off"></label>
+      <button class="btn primary" id="addBtn" type="button">Log a call</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="strip" aria-label="Board status">
+    <div class="stat" id="stNew"><b>0</b><span>Unclaimed</span></div>
+    <div class="stat"><b id="stProg">0</b><span>In progress</span></div>
+    <div class="stat"><b id="stToday">0</b><span>Finished today</span></div>
+  </section>
+
+  <div class="filters" id="filters"></div>
+
+  <div class="sheet">
+    <table>
+      <thead><tr><th class="num">#</th><th>Status</th><th>Line</th><th>Caller</th><th>Caller number</th><th>What they called about</th><th>Received</th><th>Claimed by</th><th>Finished</th><th>Action</th></tr></thead>
+      <tbody id="rows"><tr><td class="empty" colspan="10">Loading the board…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<dialog id="addDlg" aria-labelledby="addTitle">
+  <form class="dlg" id="addForm" novalidate>
+    <h3 id="addTitle">Log a call</h3>
+    <div class="two">
+      <div class="field"><label for="fSource">Phone line</label><select id="fSource"></select></div>
+      <div class="field"><label for="fLine">Type</label><select id="fLine"></select></div>
+    </div>
+    <div class="two">
+      <div class="field"><label for="fContact">Caller name</label><input id="fContact" maxlength="80" autocomplete="off"></div>
+      <div class="field"><label for="fReach">Caller number</label><input id="fReach" type="tel" maxlength="40" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="fLink">Google Voice link (optional)</label><input id="fLink" type="url" maxlength="600" placeholder="Paste the link to the voicemail, call or text" autocomplete="off"></div>
+    <div class="field"><label for="fCat">Category</label><select id="fCat"></select></div>
+    <div class="field"><label for="fSummary">What they called about</label><textarea id="fSummary" maxlength="2000" required></textarea></div>
+    <div class="acts">
+      <button class="btn" type="button" id="addCancel">Cancel</button>
+      <button class="btn primary" type="submit" id="addSave">Add to board</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="detDlg" aria-labelledby="detTitle">
+  <div class="dlg">
+    <div id="detBody" style="display:grid;gap:14px"></div>
+    <form class="noteform" id="noteForm"><input id="noteText" maxlength="500" placeholder="Add a note for the team" autocomplete="off" aria-label="Add a note"><button class="btn" type="submit">Add note</button></form>
+    <div class="acts" id="detActs"></div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+<script type="module">
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBTiDC-3FG3W0yKmgsPvuwDE5oj8hSPiE8",
+  authDomain: "wheelhouse-phone-board.firebaseapp.com",
+  projectId: "wheelhouse-phone-board",
+  storageBucket: "wheelhouse-phone-board.firebasestorage.app",
+  messagingSenderId: "449352358380",
+  appId: "1:449352358380:web:0b23f6ac58ab55b9c748c9"
+};
+// Phone lines: edit these labels to match the four numbers.
+// The four Google Voice lines. Each call's "source" is one of these keys.
+const SOURCES = {
+  west:     { label: "West",     c: "var(--s-info)" },
+  philly:   { label: "Philly",   c: "var(--s-grades)" },
+  flagship: { label: "Flagship", c: "var(--s-phone)" },
+  ardmore:  { label: "Ardmore",  c: "var(--s-sqmsg)" }
+};
+const KINDS = { voicemail: "Voicemail", missed: "Missed call", text: "Text" };
+const $ = (id) => document.getElementById(id);
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "style") e.style.cssText = v;
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+}
+function age(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000));
+  if (m < 60) return m + "m";
+  const hr = Math.floor(m / 60);
+  if (hr < 48) return hr + "h";
+  return Math.floor(hr / 24) + "d";
+}
+function when(t) {
+  if (!t) return "";
+  return new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+let toastTimer;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+function store(k, v) {
+  try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {}
+  return null;
+}
+
+let db = null, user = null, col = null;
+let me = { id: null, name: "" };
+let readOnly = false, loaded = { open: false, done: false };
+let openDocs = [], doneDocs = [];
+let filter = store("wib-filter") || "all";
+let mineOnly = false, statusFilter = "new";
+let detailId = null, removeArmed = false;
+let names = {};
+const tabKey = "t" + Math.random().toString(36).slice(2);
+
+function sourceLabel(d) {
+  const s = SOURCES[d.source] || { label: "Unknown line" };
+  return s.label + (KINDS[d.line] ? " · " + KINDS[d.line] : "");
+}
+function who(id, label) { return (id && names[id] && names[id].name) || label || "Someone"; }
+function myLabel() { return me.name || $("myName").value.trim() || null; }
+function allDocs() { return openDocs.concat(doneDocs); }
+function find(id) { return allDocs().find((d) => d.id === id); }
+
+function setReadOnly(msg) {
+  readOnly = true;
+  $("addBtn").hidden = true; $("noteForm").hidden = true;
+  $("banner").textContent = msg; $("banner").hidden = false;
+  render();
+}
+function fail(e) {
+  const code = e && e.code;
+  if (code === "permission-denied") { setReadOnly("Your Google account isn't on the team list for this board. Ask JT to add it."); return; }
+  if (code === "invalid_argument" || code === "not_granted" || code === "revoked") setReadOnly("You can view this board but not change it. Ask the board owner for Contributor access.");
+  else if (code === "quota_exceeded") toast("The board is full. Remove old finished calls to make room.");
+  else toast("That didn't save. Check your connection and try again.");
+}
+function needName() {
+  if (me.name || $("myName").value.trim()) return false;
+  $("nameWrap").hidden = false; $("myName").focus();
+  toast("Enter your name first so the team knows who has it.");
+  return true;
+}
+
+async function claim(id) {
+  if (needName()) return;
+  try {
+    const ok = await col.claim(id, { status: "claimed", claimedBy: me.id, claimedLabel: myLabel(), claimedAt: Date.now() });
+    if (!ok) { toast("Someone already claimed this one."); return; }
+    toast("Claimed. It's in In progress under your name.");
+  } catch (e) { fail(e); }
+}
+async function finish(id) {
+  if (needName()) return;
+  try {
+    await col.doc(id).update({ status: "done", doneBy: me.id, doneLabel: myLabel(), doneAt: Date.now() });
+    toast("Marked finished.");
+  } catch (e) { fail(e); }
+}
+async function release(id) {
+  try {
+    await col.doc(id).update({ status: "new", claimedBy: null, claimedLabel: null, claimedAt: null });
+    toast("Released back to Unclaimed.");
+  } catch (e) { fail(e); }
+}
+async function reopen(id) {
+  const d = find(id); if (!d) return;
+  try {
+    await col.doc(id).update({ status: d.claimedBy || d.claimedLabel ? "claimed" : "new", doneBy: null, doneLabel: null, doneAt: null });
+    toast("Reopened.");
+  } catch (e) { fail(e); }
+}
+async function removeDoc(id) {
+  try { await col.doc(id).delete(); $("detDlg").close(); toast("Removed."); } catch (e) { fail(e); }
+}
+
+// Where each source lives. A link pasted on the call wins; otherwise open the source's inbox.
+function target(d) {
+  if (typeof d.link === "string" && /^https:\/\//i.test(d.link)) return { href: d.link, label: "Open in Google Voice" };
+  const page = d.line === "text" ? "messages" : d.line === "missed" ? "calls" : "voicemail";
+  return { href: "https://voice.google.com/u/0/" + page, label: "Open in Google Voice" };
+}
+function openLink(d, cls, text, onclick) {
+  const t = target(d);
+  return h("a", { class: cls, href: t.href, target: "_blank", rel: "noopener", text: text || t.label, onclick });
+}
+const claimAndGo = (d) => (ev) => { if (needName()) { ev.preventDefault(); return; } claim(d.id); };
+// Categories, in display order. A call is sorted by keywords in what they need
+// unless someone picks a category by hand.
+const CATEGORIES = {
+  general: "General questions",
+  grading: "Grading",
+  bad: "Bad experience",
+  prices: "Prices"
+};
+const KEYWORDS = [
+  ["bad", /\b(complain\w*|upset|angry|mad|rude|refund\w*|damaged|broken|bent|crease[ds]?|scratched|never (got|received|arrived|came)|didn'?t (get|receive|arrive)|not received|missing|wrong (card|item|order|size)|lost|scam\w*|ripped off|terrible|horrible|awful|worst|disappoint\w*|unhappy|not happy|poor service|unacceptable|chargeback|dispute|frustrat\w*|still waiting|no response|ignored)\b/i],
+  ["grading", /\b(grad(e|es|ed|ing)|psa|sgc|bgs|beckett|cgc|slab\w*|submission\w*|submit\w*|regrade|crossover|turnaround|pop report|autograph auth\w*)\b/i],
+  ["prices", /(\$\s?\d)|\b(price\w*|cost\w*|how much|quote\w*|value\w*|worth|offer\w*|apprais\w*|comps?|msrp|discount\w*|deal|cheap\w*|expensive|buy ?list|trade[- ]?in|sell(ing)?|buy(ing)? (my|a|his|her|their)? ?collection\w*|collections?)\b/i]
+];
+function autoCategory(d) {
+  const text = [d.summary, d.contact].filter(Boolean).join(" ");
+  for (const [key, re] of KEYWORDS) if (re.test(text)) return key;
+  return "general";
+}
+function category(d) { return CATEGORIES[d.category] ? d.category : autoCategory(d); }
+const STATUS = { new: "Unclaimed", claimed: "In progress", done: "Finished" };
+function row(d, i) {
+  const s = SOURCES[d.source] || { c: "var(--muted)" };
+  let act = null;
+  if (!readOnly && d.status === "new") act = openLink(d, "btn primary", "Claim & open", claimAndGo(d));
+  else if (!readOnly && d.status === "claimed") act = h("div", { class: "acts2" }, openLink(d, "btn", "Open"), h("button", { class: "btn", type: "button", text: "Mark finished", onclick: () => finish(d.id) }));
+  else act = openLink(d, "btn quiet", "Open");
+  const person = (id, label, t) => t ? [who(id, label), h("small", { text: when(t) })] : "";
+  return h("tr", { class: "is-" + d.status },
+    h("td", { class: "num", text: i + 1 }),
+    h("td", null, h("span", { class: "state " + d.status, text: STATUS[d.status] || d.status })),
+    h("td", null, h("span", { class: "tag", style: "--c:" + s.c }, h("span", { class: "dot" }), sourceLabel(d))),
+    h("td", { class: "wrap2", text: d.contact || "" }),
+    h("td", { class: "wrap2", text: d.reach || "" }),
+    h("td", { class: "need" }, h("button", { class: "sum", type: "button", text: d.summary || "(no details)", onclick: () => openDetail(d.id) })),
+    h("td", { text: when(d.createdAt) }),
+    h("td", null, d.status === "new" ? "" : person(d.claimedBy, d.claimedLabel, d.claimedAt)),
+    h("td", null, person(d.doneBy, d.doneLabel, d.doneAt)),
+    h("td", null, act));
+}
+
+let renderSeq = 0;
+async function render() {
+  const seq = ++renderSeq;
+  const docs = allDocs();
+  if (user) {
+    const ids = [...new Set(docs.flatMap((d) => [d.claimedBy, d.doneBy, d.createdBy, ...(d.notes || []).map((n) => n.by)]).filter(Boolean))];
+    if (ids.length) { const ps = await user.profiles(ids); if (seq !== renderSeq) return; names = ps; }
+  }
+  const isMine = (d) => (me.id && (d.claimedBy === me.id || d.doneBy === me.id));
+  const pass = (d) => (filter === "all" || d.source === filter) && (!mineOnly || isMine(d));
+  const nw = openDocs.filter((d) => d.status === "new").sort((a, b) => a.createdAt - b.createdAt);
+  const pg = openDocs.filter((d) => d.status === "claimed").sort((a, b) => (a.claimedAt || 0) - (b.claimedAt || 0));
+  const dn = doneDocs.slice().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+
+  // status strip (whole board, ignores filters)
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  $("stNew").querySelector("b").textContent = nw.length;
+  $("stNew").classList.toggle("warn", nw.length > 0);
+  $("stProg").textContent = pg.length;
+  $("stToday").textContent = dn.filter((d) => d.doneAt >= midnight.getTime()).length;
+  // source filter
+  const f = $("filters"); f.textContent = "";
+  const chip = (key, label, n, c) => h("button", { class: "chip", type: "button", "aria-pressed": String(filter === key),
+    onclick: () => { filter = key; store("wib-filter", key); render(); } },
+    c ? h("span", { class: "dot", style: "--c:" + c }) : null, label, h("span", { class: "n", text: n }));
+  f.append(chip("all", "All lines", openDocs.length));
+  for (const k in SOURCES) f.append(chip(k, SOURCES[k].label, openDocs.filter((d) => d.source === k).length, SOURCES[k].c));
+
+  f.append(h("span", { class: "gap" }));
+  const sc = (key, label, n) => h("button", { class: "chip", type: "button", "aria-pressed": String(statusFilter === key), onclick: () => { statusFilter = key; render(); } }, label, h("span", { class: "n", text: n }));
+  f.append(sc("all", "All statuses", docs.length), sc("new", "Unclaimed", nw.length), sc("claimed", "In progress", pg.length), sc("done", "Finished", dn.length));
+  if (me.id) f.append(h("button", { class: "chip", type: "button", "aria-pressed": String(mineOnly), text: "Only mine", onclick: () => { mineOnly = !mineOnly; render(); } }));
+
+  // sheet rows: unclaimed first (oldest on top), then in progress, then finished
+  const shown = nw.concat(pg, dn).filter(pass).filter((d) => statusFilter === "all" || d.status === statusFilter);
+  const body = $("rows"); body.textContent = "";
+  if (!shown.length) {
+    const msg = !(loaded.open && loaded.done) ? "Loading the board…"
+      : !docs.length ? "Nothing logged yet. When a voicemail, missed call or text comes in on any of the four lines, choose Log a call and it appears here as a new row for someone to claim."
+      : "No calls match these filters.";
+    body.append(h("tr", null, h("td", { class: "empty", colspan: "10", text: msg })));
+  } else {
+    let i = 0;
+    for (const key in CATEGORIES) {
+      const group = shown.filter((d) => category(d) === key);
+      if (!group.length) continue;
+      body.append(h("tr", { class: "group" + (key === "bad" ? " bad" : "") },
+        h("td", { colspan: "10" }, CATEGORIES[key], h("span", { class: "n", text: group.length + (group.length === 1 ? " call" : " calls") }))));
+      for (const d of group) body.append(row(d, i++));
+    }
+  }
+
+  if ($("detDlg").open) drawDetail();
+}
+
+function openDetail(id) { detailId = id; removeArmed = false; $("noteText").value = ""; drawDetail(); if (!$("detDlg").open) $("detDlg").showModal(); }
+function drawDetail() {
+  const d = find(detailId), body = $("detBody"), acts = $("detActs");
+  body.textContent = ""; acts.textContent = "";
+  const close = h("button", { class: "btn", type: "button", text: "Close", onclick: () => $("detDlg").close() });
+  if (!d) { body.append(h("p", { class: "empty", text: "This call was removed or has aged off the Finished list." })); acts.append(close); return; }
+  const s = SOURCES[d.source] || { c: "var(--muted)" };
+  const stateText = d.status === "new" ? "Unclaimed" : d.status === "claimed" ? "In progress · " + who(d.claimedBy, d.claimedLabel) : "Finished · " + who(d.doneBy, d.doneLabel);
+  body.append(
+    h("div", { class: "row", style: "display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center" },
+      h("span", { class: "tag", style: "--c:" + s.c }, h("span", { class: "dot" }), sourceLabel(d)),
+      h("span", { class: "state " + d.status, text: stateText })),
+    h("h3", { id: "detTitle", text: d.contact || d.reach || "Call" }),
+    h("div", { class: "field" }, h("label", { class: "lbl", for: "detCat", text: "Category" }), readOnly
+      ? h("span", { text: CATEGORIES[category(d)] })
+      : (() => {
+          const sel = h("select", { id: "detCat", onchange: async (ev) => {
+            try { await col.doc(d.id).update({ category: ev.target.value || null }); toast("Category saved."); } catch (e) { fail(e); } } },
+            h("option", { value: "", text: "Automatic (" + CATEGORIES[autoCategory(d)] + ")" }),
+            Object.keys(CATEGORIES).map((k) => h("option", { value: k, text: CATEGORIES[k] })));
+          sel.value = CATEGORIES[d.category] ? d.category : "";
+          return sel;
+        })()),
+    d.reach ? h("div", { class: "field" }, h("span", { class: "lbl", text: "Caller number" }), h("span", { class: "body-text", style: "user-select:all", text: d.reach })) : null,
+    h("div", { class: "field" }, h("span", { class: "lbl", text: "What they called about" }), h("div", { class: "body-text", text: d.summary || "" })),
+    h("div", { class: "who", text: "Logged " + when(d.createdAt) + " by " + who(d.createdBy, d.createdLabel)
+      + (d.claimedAt ? " · claimed " + when(d.claimedAt) : "") + (d.doneAt ? " · finished " + when(d.doneAt) : "") }));
+  const notes = d.notes || [];
+  if (notes.length) body.append(h("div", { class: "notes" }, h("span", { class: "lbl", text: "Notes" }),
+    notes.map((n) => h("div", { class: "note" }, h("span", { text: n.text }), h("small", { text: who(n.by, n.label) + " · " + when(n.t) })))));
+  if (!readOnly) {
+    if (d.status === "new") acts.append(openLink(d, "btn primary", "Claim & open", claimAndGo(d)));
+    if (d.status === "claimed") acts.append(
+      h("button", { class: "btn", type: "button", text: "Release", onclick: () => release(d.id) }),
+      h("button", { class: "btn primary", type: "button", text: "Mark finished", onclick: () => finish(d.id) }));
+    if (d.status === "done") acts.append(h("button", { class: "btn", type: "button", text: "Reopen", onclick: () => reopen(d.id) }));
+    acts.prepend(h("button", { class: "btn quiet danger", type: "button", text: removeArmed ? "Confirm remove" : "Remove",
+      onclick: () => { if (removeArmed) removeDoc(d.id); else { removeArmed = true; drawDetail(); } } }));
+  }
+  if (readOnly || d.status !== "new") acts.append(openLink(d, "btn"));
+  acts.append(close);
+}
+
+$("noteForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const text = $("noteText").value.trim(), d = find(detailId);
+  if (!text || !d || needName()) return;
+  const notes = (d.notes || []).map((n) => ({ ...n })).concat({ t: Date.now(), by: me.id, label: myLabel(), text });
+  try { await col.doc(d.id).update({ notes }); $("noteText").value = ""; } catch (e) { fail(e); }
+});
+
+// add form
+for (const k in SOURCES) $("fSource").append(h("option", { value: k, text: SOURCES[k].label }));
+$("fCat").append(h("option", { value: "", text: "Automatic, from what they need" }));
+for (const k in CATEGORIES) $("fCat").append(h("option", { value: k, text: CATEGORIES[k] }));
+for (const k in KINDS) $("fLine").append(h("option", { value: k, text: KINDS[k] }));
+$("addBtn").addEventListener("click", () => { if (!col) return; $("addDlg").showModal(); $("fSummary").focus(); });
+$("addCancel").addEventListener("click", () => $("addDlg").close());
+$("addForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const summary = $("fSummary").value.trim();
+  if (!summary) { $("fSummary").focus(); toast("Add a line about what they called about."); return; }
+  const link = $("fLink").value.trim();
+  if (link && !/^https:\/\//i.test(link)) { $("fLink").focus(); toast("The link should start with https://"); return; }
+  if (needName()) { $("addDlg").close(); return; }
+  const src = $("fSource").value;
+  $("addSave").disabled = true;
+  try {
+    await col.add({ source: src, line: $("fLine").value, contact: $("fContact").value.trim(), reach: $("fReach").value.trim(),
+      summary, link, category: $("fCat").value || null, status: "new", createdAt: Date.now(), createdBy: me.id, createdLabel: myLabel(),
+      claimedBy: null, claimedLabel: null, claimedAt: null, doneBy: null, doneLabel: null, doneAt: null, notes: [] });
+    $("fContact").value = ""; $("fReach").value = ""; $("fLink").value = ""; $("fSummary").value = ""; $("fCat").value = "";
+    $("addDlg").close(); toast("Call added to Unclaimed.");
+  } catch (e) { fail(e); }
+  $("addSave").disabled = false;
+});
+$("myName").value = store("wib-name") || "";
+$("myName").addEventListener("change", () => store("wib-name", $("myName").value.trim()));
+
+// Outside Claude (e.g. the file opened from a folder) the shared board can't load,
+// so show example calls that work in this browser tab only.
+function startDemo() {
+  const t = Date.now(), m = 60000;
+  const base = { line: null, createdBy: null, createdLabel: "Example", claimedBy: null, claimedLabel: null, claimedAt: null, doneBy: null, doneLabel: null, doneAt: null, notes: [], link: null };
+  const all = new Map([
+    { id: "example-1", source: "west", line: "voicemail", contact: "Example Caller A", reach: "610-555-0131", summary: "EXAMPLE: Left a voicemail asking if we have 2025 Bowman Chrome hobby boxes and how much they are.", status: "new", createdAt: t - 12 * m },
+    { id: "example-2", source: "philly", line: "missed", contact: "", reach: "215-555-0164", summary: "EXAMPLE: Missed call, no voicemail. Call back.", status: "new", createdAt: t - 45 * m },
+    { id: "example-3", source: "flagship", line: "voicemail", contact: "Example Caller C", reach: "484-555-0119", summary: "EXAMPLE: Wants to know when their PSA submission will be back.", status: "claimed", createdAt: t - 140 * m, claimedLabel: "Example Staff 1", claimedAt: t - 110 * m,
+      notes: [{ t: t - 100 * m, by: null, label: "Example Staff 1", text: "Called back, left a message. Will try again after 3." }] },
+    { id: "example-4", source: "ardmore", line: "text", contact: "Example Caller D", reach: "610-555-0187", summary: "EXAMPLE: Texted that the card they bought was damaged in the top loader and wants it replaced.", status: "new", createdAt: t - 25 * m },
+    { id: "example-5", source: "west", line: "voicemail", contact: "Example Caller E", reach: "610-555-0152", summary: "EXAMPLE: Asked about store hours on Sunday.", status: "done", createdAt: t - 400 * m, claimedLabel: "Example Staff 2", claimedAt: t - 380 * m, doneLabel: "Example Staff 2", doneAt: t - 360 * m }
+  ].map((d) => [d.id, { ...base, ...d }]));
+  const emit = () => {
+    const arr = [...all.values()].map((d) => ({ ...d }));
+    openDocs = arr.filter((d) => d.status !== "done"); doneDocs = arr.filter((d) => d.status === "done");
+    loaded.open = loaded.done = true; render();
+  };
+  col = {
+    add: async (data) => { const id = "local-" + Date.now(); all.set(id, { id, ...data }); emit(); },
+    claim: async (id, patch) => { const d = all.get(id); if (!d || d.status !== "new") return false; Object.assign(d, patch); emit(); return true; },
+    doc: (id) => ({
+      acquire: async () => ({ acquired: true }),
+      get: async () => ({ exists: all.has(id), data: () => all.get(id) }),
+      update: async (patch) => { if (all.has(id)) Object.assign(all.get(id), patch); emit(); },
+      delete: async () => { all.delete(id); emit(); }
+    })
+  };
+  $("banner").textContent = "Demo copy with example calls. Changes here stay in this browser tab and reset when you reload. The team's live board is the GitHub Pages link.";
+  $("banner").hidden = false;
+  $("nameWrap").hidden = false;
+  emit();
+  setInterval(() => { if (!document.hidden) render(); }, 60000);
+}
+
+// Firebase: Google sign-in, then live lists of open and recently finished calls.
+async function start() {
+  render();
+  if (location.protocol === "file:") { startDemo(); return; }
+  const V = "https://www.gstatic.com/firebasejs/10.12.2/";
+  let initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+    getFirestore, collection, query, where, orderBy, limit, onSnapshot, addDoc, doc, getDoc, updateDoc, deleteDoc, runTransaction;
+  try {
+    ({ initializeApp } = await import(V + "firebase-app.js"));
+    ({ getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = await import(V + "firebase-auth.js"));
+    ({ getFirestore, collection, query, where, orderBy, limit, onSnapshot, addDoc, doc, getDoc, updateDoc, deleteDoc, runTransaction } = await import(V + "firebase-firestore.js"));
+  } catch (e) {
+    $("banner").textContent = "Couldn't load the board. Check your internet connection and reload."; $("banner").hidden = false;
+    loaded.open = loaded.done = true; render(); return;
+  }
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app), fs = getFirestore(app);
+  const calls = collection(fs, "calls");
+  col = {
+    add: (data) => addDoc(calls, data),
+    claim: (id, patch) => runTransaction(fs, async (tx) => {
+      const ref = doc(fs, "calls", id), snap = await tx.get(ref);
+      if (!snap.exists() || snap.data().status !== "new") return false;
+      tx.update(ref, patch); return true;
+    }),
+    doc: (id) => {
+      const ref = doc(fs, "calls", id);
+      return {
+        get: async () => { const s = await getDoc(ref); return { exists: s.exists(), data: () => s.data() }; },
+        update: (patch) => updateDoc(ref, patch),
+        delete: () => deleteDoc(ref)
+      };
+    }
+  };
+  $("signInBtn").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch((e) => {
+    if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") toast("Sign-in didn't finish: " + (e.code || "try again"));
+  }));
+  $("signOutBtn").addEventListener("click", () => signOut(auth));
+  let unsubs = [], ticker = null;
+  const take = (snap) => snap.docs.map((s) => ({ id: s.id, ...s.data() }));
+  const lost = (e) => {
+    if (e && e.code === "permission-denied") setReadOnly("Your Google account (" + (auth.currentUser && auth.currentUser.email) + ") isn't on the team list for this board. Ask JT to add it.");
+    else { $("banner").textContent = "Lost the connection to the board. Reload the page."; $("banner").hidden = false; }
+    loaded.open = loaded.done = true; render();
+  };
+  onAuthStateChanged(auth, (u) => {
+    unsubs.forEach((f) => f()); unsubs = [];
+    openDocs = []; doneDocs = []; readOnly = false;
+    $("banner").hidden = true; $("noteForm").hidden = false;
+    if (!u) {
+      me = { id: null, name: "" };
+      $("signInBtn").hidden = false; $("signOutBtn").hidden = true; $("whoAmI").hidden = true; $("addBtn").hidden = true;
+      $("banner").textContent = "Sign in with your Google account to see and claim calls."; $("banner").hidden = false;
+      loaded.open = loaded.done = true; render(); return;
+    }
+    me = { id: u.uid, name: u.displayName || u.email || "" };
+    $("whoAmI").textContent = me.name; $("whoAmI").hidden = false;
+    $("signInBtn").hidden = true; $("signOutBtn").hidden = false; $("addBtn").hidden = false; $("nameWrap").hidden = true;
+    loaded.open = loaded.done = false; render();
+    unsubs.push(onSnapshot(query(calls, where("status", "in", ["new", "claimed"]), limit(1000)),
+      (s) => { openDocs = take(s); loaded.open = true; render(); }, lost));
+    unsubs.push(onSnapshot(query(calls, orderBy("doneAt", "desc"), limit(200)),
+      (s) => { doneDocs = take(s).filter((d) => d.status === "done").slice(0, 150); loaded.done = true; render(); }, lost));
+    if (!ticker) ticker = setInterval(() => { if (!document.hidden) render(); }, 60000);
+  });
+}
+start();
+</script>
