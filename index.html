@@ -313,10 +313,24 @@ async function removeDoc(id) {
 }
 
 // Where each source lives. A link pasted on the call wins; otherwise open the source's inbox.
+// Each line's Google account, so links open that line's Google Voice
+// no matter how many Google accounts someone is signed in to.
+const LINE_ACCOUNTS = {
+  ardmore: "19003wheelhouse@wheelhousecards.com",
+  west: "19380wheelhouse@wheelhousecards.com",
+  philly: "19103wheelhouse@wheelhousecards.com"
+};
 function target(d) {
-  if (typeof d.link === "string" && /^https:\/\//i.test(d.link)) return { href: d.link, label: "Open in Google Voice" };
-  const page = d.line === "text" ? "messages" : d.line === "missed" ? "calls" : "voicemail";
-  return { href: "https://voice.google.com/u/0/" + page, label: "Open in Google Voice" };
+  const link = typeof d.link === "string" ? d.link : "";
+  const digits = (d.reach || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  let url;
+  if (/^https:\/\/voice\.google\.com\/.*itemId=/i.test(link)) url = new URL(link);          // the exact voicemail, call or text
+  else if (d.line === "text" && digits.length === 10) url = new URL("https://voice.google.com/messages?itemId=t.%2B1" + digits);
+  else if (/^https:\/\//i.test(link) && !/^https:\/\/voice\.google\.com\/?$/i.test(link)) return { href: link, label: "Open" };
+  else url = new URL("https://voice.google.com/" + (d.line === "text" ? "messages" : d.line === "missed" ? "calls" : "voicemail"));
+  url.pathname = url.pathname.replace(/^\/u\/\d+/, "");
+  if (LINE_ACCOUNTS[d.source]) url.searchParams.set("authuser", LINE_ACCOUNTS[d.source]);
+  return { href: url.toString(), label: "Open in Google Voice" };
 }
 function openLink(d, cls, text, onclick) {
   const t = target(d);
