@@ -74,17 +74,18 @@ td .acts2 .btn { text-align: center; }
 .sheet { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
 th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
-.state, .tag, td .btn, td.nowrap { white-space: nowrap; }
+.state, td .btn, td.nowrap { white-space: nowrap; }
+td .tag { flex-wrap: wrap; row-gap: 0; }
 tr > :first-child { border-left: 0; } tr > :last-child { border-right: 0; }
 thead th { border-top: 0; background: var(--sunk); font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); position: sticky; top: 0; }
 tbody tr:last-child td { border-bottom: 0; }
 td.num, th.num { background: var(--sunk); color: var(--muted); text-align: center; width: 1%; font-size: 12px; }
-td.need { min-width: 160px; }
+td.need { min-width: 130px; }
 td.wrap2 { min-width: 80px; overflow-wrap: anywhere; }
 td small { display: block; color: var(--muted); font-size: 12px; }
 tbody tr:hover td:not(.num) { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 tr.is-done td:not(.num) { color: var(--muted); }
-td .btn { padding: 3px 10px; font-size: 13px; }
+td .btn { padding: 3px 8px; font-size: 13px; }
 tr.group td { background: var(--sunk); font: 700 15px/1.2 var(--display); letter-spacing: .05em; text-transform: uppercase; padding: 8px 10px; border-left: 0; border-right: 0; }
 tr.group td .n { font: 600 12px/1 var(--body); color: var(--muted); margin-left: 8px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 tr.group.bad td { color: var(--danger); }
@@ -147,8 +148,8 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 
   <div class="sheet">
     <table>
-      <thead><tr><th class="num">#</th><th>Status</th><th>Line</th><th>Caller</th><th>Caller number</th><th>What they called about</th><th>Received</th><th>Claimed by</th><th>Finished</th><th>Action</th></tr></thead>
-      <tbody id="rows"><tr><td class="empty" colspan="10">Loading the board…</td></tr></tbody>
+      <thead><tr><th class="num">#</th><th>Status</th><th>Line</th><th>Caller number</th><th>What they called about</th><th>Received</th><th>Claimed by</th><th>Finished</th><th>Action</th></tr></thead>
+      <tbody id="rows"><tr><td class="empty" colspan="9">Loading the board…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -353,7 +354,6 @@ function row(d, i) {
     h("td", { class: "num", text: i + 1 }),
     h("td", null, h("span", { class: "state " + d.status, text: STATUS[d.status] || d.status })),
     h("td", null, h("span", { class: "tag", style: "--c:" + s.c }, h("span", { class: "dot" }), sourceLabel(d))),
-    h("td", { class: "wrap2", text: d.contact || "" }),
     h("td", { class: "nowrap", text: d.reach || "" }),
     h("td", { class: "need" }, h("button", { class: "sum", type: "button", text: d.summary || "(no details)", onclick: () => openDetail(d.id) })),
     h("td", { text: when(d.createdAt) }),
@@ -402,14 +402,14 @@ async function render() {
     const msg = !(loaded.open && loaded.done) ? "Loading the board…"
       : !docs.length ? "Nothing logged yet. When a voicemail, missed call or text comes in on any of the four lines, choose Log a call and it appears here as a new row for someone to claim."
       : "No calls match these filters.";
-    body.append(h("tr", null, h("td", { class: "empty", colspan: "10", text: msg })));
+    body.append(h("tr", null, h("td", { class: "empty", colspan: "9", text: msg })));
   } else {
     let i = 0;
     for (const key in CATEGORIES) {
       const group = shown.filter((d) => category(d) === key);
       if (!group.length) continue;
       body.append(h("tr", { class: "group" + (key === "bad" ? " bad" : "") },
-        h("td", { colspan: "10" }, CATEGORIES[key], h("span", { class: "n", text: group.length + (group.length === 1 ? " call" : " calls") }))));
+        h("td", { colspan: "9" }, CATEGORIES[key], h("span", { class: "n", text: group.length + (group.length === 1 ? " call" : " calls") }))));
       for (const d of group) body.append(row(d, i++));
     }
   }
