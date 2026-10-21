@@ -294,7 +294,7 @@ async function finish(id) {
 async function release(id) {
   try {
     await col.doc(id).update({ status: "new", claimedBy: null, claimedLabel: null, claimedAt: null });
-    toast("Released back to Unclaimed.");
+    toast("Unclaimed. It's back in Unclaimed for anyone to pick up.");
   } catch (e) { fail(e); }
 }
 async function reopen(id) {
@@ -343,7 +343,7 @@ function row(d, i) {
   const s = SOURCES[d.source] || { c: "var(--muted)" };
   let act = null;
   if (!readOnly && d.status === "new") act = openLink(d, "btn primary", "Claim & open", claimAndGo(d));
-  else if (!readOnly && d.status === "claimed") act = h("div", { class: "acts2" }, openLink(d, "btn", "Open"), h("button", { class: "btn", type: "button", text: "Mark finished", onclick: () => finish(d.id) }));
+  else if (!readOnly && d.status === "claimed") act = h("div", { class: "acts2" }, openLink(d, "btn", "Open"), h("button", { class: "btn", type: "button", text: "Mark finished", onclick: () => finish(d.id) }), h("button", { class: "btn quiet", type: "button", text: "Unclaim", onclick: () => release(d.id) }));
   else act = openLink(d, "btn quiet", "Open");
   const person = (id, label, t) => t ? [who(id, label), h("small", { text: when(t) })] : "";
   return h("tr", { class: "is-" + d.status },
@@ -447,7 +447,7 @@ function drawDetail() {
   if (!readOnly) {
     if (d.status === "new") acts.append(openLink(d, "btn primary", "Claim & open", claimAndGo(d)));
     if (d.status === "claimed") acts.append(
-      h("button", { class: "btn", type: "button", text: "Release", onclick: () => release(d.id) }),
+      h("button", { class: "btn", type: "button", text: "Unclaim", onclick: () => release(d.id) }),
       h("button", { class: "btn primary", type: "button", text: "Mark finished", onclick: () => finish(d.id) }));
     if (d.status === "done") acts.append(h("button", { class: "btn", type: "button", text: "Reopen", onclick: () => reopen(d.id) }));
     acts.prepend(h("button", { class: "btn quiet danger", type: "button", text: removeArmed ? "Confirm remove" : "Remove",
