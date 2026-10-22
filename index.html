@@ -132,7 +132,6 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
       <button class="btn quiet" id="signOutBtn" type="button" hidden>Sign out</button>
       <button class="btn primary" id="signInBtn" type="button" hidden>Sign in with Google</button>
       <label class="me-name" id="nameWrap" hidden>Your name <input id="myName" maxlength="30" placeholder="e.g. Sam" autocomplete="off"></label>
-      <button class="btn primary" id="addBtn" type="button">Log a call</button>
     </div>
   </header>
 
@@ -262,7 +261,7 @@ function find(id) { return allDocs().find((d) => d.id === id); }
 
 function setReadOnly(msg) {
   readOnly = true;
-  $("addBtn").hidden = true; $("noteForm").hidden = true;
+  $("noteForm").hidden = true;
   $("banner").textContent = msg; $("banner").hidden = false;
   render();
 }
@@ -415,7 +414,7 @@ async function render() {
   const body = $("rows"); body.textContent = "";
   if (!shown.length) {
     const msg = !(loaded.open && loaded.done) ? "Loading the board…"
-      : !docs.length ? "Nothing logged yet. When a voicemail, missed call or text comes in on any of the four lines, choose Log a call and it appears here as a new row for someone to claim."
+      : !docs.length ? "Nothing logged yet. When a voicemail or text comes in on any of the four lines, it appears here as a new row for someone to claim."
       : "No calls match these filters.";
     body.append(h("tr", null, h("td", { class: "empty", colspan: "9", text: msg })));
   } else {
@@ -488,7 +487,6 @@ for (const k in SOURCES) $("fSource").append(h("option", { value: k, text: SOURC
 $("fCat").append(h("option", { value: "", text: "Automatic, from what they need" }));
 for (const k in CATEGORIES) $("fCat").append(h("option", { value: k, text: CATEGORIES[k] }));
 for (const k in KINDS) $("fLine").append(h("option", { value: k, text: KINDS[k] }));
-$("addBtn").addEventListener("click", () => { if (!col) return; $("addDlg").showModal(); $("fSummary").focus(); });
 $("addCancel").addEventListener("click", () => $("addDlg").close());
 $("addForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -597,13 +595,13 @@ async function start() {
     $("banner").hidden = true; $("noteForm").hidden = false;
     if (!u) {
       me = { id: null, name: "" };
-      $("signInBtn").hidden = false; $("signOutBtn").hidden = true; $("whoAmI").hidden = true; $("addBtn").hidden = true;
+      $("signInBtn").hidden = false; $("signOutBtn").hidden = true; $("whoAmI").hidden = true;
       $("banner").textContent = "Sign in with your Google account to see and claim calls."; $("banner").hidden = false;
       loaded.open = loaded.done = true; render(); return;
     }
     me = { id: u.uid, name: u.displayName || u.email || "" };
     $("whoAmI").textContent = me.name; $("whoAmI").hidden = false;
-    $("signInBtn").hidden = true; $("signOutBtn").hidden = false; $("addBtn").hidden = false; $("nameWrap").hidden = true;
+    $("signInBtn").hidden = true; $("signOutBtn").hidden = false; $("nameWrap").hidden = true;
     loaded.open = loaded.done = false; render();
     unsubs.push(onSnapshot(query(calls, where("status", "in", ["new", "claimed"]), limit(1000)),
       (s) => { openDocs = take(s); loaded.open = true; render(); }, lost));
