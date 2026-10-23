@@ -355,13 +355,19 @@ const CATEGORIES = {
   bad: "Bad experience",
   prices: "Prices"
 };
+// Someone offering cards to us goes under Prices first, even if the
+// card's description has a word like "missing" or "damaged" in it.
+const SELLING = /\b(sell(ing)?|want to sell|looking to sell|what would you (give|pay|offer)|would you (buy|be interested)|interested in buying|buy (my|this|these|it|them)|make (me )?an offer|trade[- ]?in|consign\w*)\b/i;
 const KEYWORDS = [
-  ["bad", /\b(complain\w*|upset|angry|mad|rude|refund\w*|damaged|broken|bent|crease[ds]?|scratched|never (got|received|arrived|came)|didn'?t (get|receive|arrive)|not received|missing|wrong (card|item|order|size)|lost|scam\w*|ripped off|terrible|horrible|awful|worst|disappoint\w*|unhappy|not happy|poor service|unacceptable|chargeback|dispute|frustrat\w*|still waiting|no response|ignored)\b/i],
+  ["bad", /\b(complain\w*|upset|angry|rude|refund\w*|damaged|broken|bent|crease[ds]?|scratched|never (got|received|arrived|came)|didn'?t (get|receive|arrive)|not received|(is|are|was|were|still|went) missing|missing (from|my|our|the|an?) (order|package|box|shipment|item|card|cards)|wrong (card|item|order|size)|(got|was|were|is) lost|lost (my|our|the) (order|package|card|cards|submission)|lost in the mail|scam\w*|ripped off|terrible|horrible|awful|worst|disappoint\w*|unhappy|not happy|poor service|unacceptable|chargeback|dispute|frustrat\w*|still waiting|no response|ignored)\b/i],
   ["grading", /\b(grad(e|es|ed|ing)|psa|sgc|bgs|beckett|cgc|slab\w*|submission\w*|submit\w*|regrade|crossover|turnaround|pop report|autograph auth\w*)\b/i],
-  ["prices", /(\$\s?\d)|\b(price\w*|cost\w*|how much|quote\w*|value\w*|worth|offer\w*|apprais\w*|comps?|msrp|discount\w*|deal|cheap\w*|expensive|buy ?list|trade[- ]?in|sell(ing)?|buy(ing)? (my|a|his|her|their)? ?collection\w*|collections?)\b/i]
+  // A card written out like a listing ("2003-04 Fleer ... RC") is usually
+  // someone asking what we'd pay for it, so it counts as Prices.
+  ["prices", /(\$\s?\d)|\b(price\w*|cost\w*|how much|quote\w*|value\w*|worth|offer\w*|apprais\w*|comps?|msrp|discount\w*|deal|cheap\w*|expensive|buy ?list|collections?|rc|rookie|serial( number(ed)?)?|numbered|\/\d{2,4}|(19|20)\d{2}(-\d{2})? (topps|bowman|panini|fleer|upper deck|donruss|prizm|select|optic|mosaic|chrome|leaf|score|skybox))\b/i]
 ];
 function autoCategory(d) {
   const text = [d.allText || d.summary, d.contact].filter(Boolean).join(" ");
+  if (SELLING.test(text)) return "prices";
   for (const [key, re] of KEYWORDS) if (re.test(text)) return key;
   return "general";
 }
