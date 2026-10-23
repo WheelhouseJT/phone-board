@@ -94,6 +94,10 @@ td.empty, .empty { white-space: normal; padding: 22px 14px; color: var(--muted);
 .tag { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--c, var(--muted)); }
 .sum { all: unset; cursor: pointer; font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sum:hover { text-decoration: underline; }
+.count { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--prog); background: var(--prog-bg); border-radius: 999px; padding: 1px 7px; margin-bottom: 3px; }
+.msgs { display: grid; gap: 8px; }
+.msg { border-left: 2px solid var(--line); padding-left: 10px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.msg small { display: block; color: var(--muted); }
 .sum:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .who { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .state { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
@@ -279,36 +283,42 @@ function needName() {
   return true;
 }
 
-async function claim(id) {
+const idList = (x) => Array.isArray(x) ? x : [x];
+async function claim(ids) {
   if (needName()) return;
   try {
-    const ok = await col.claim(id, { status: "claimed", claimedBy: me.id, claimedLabel: myLabel(), claimedAt: Date.now() });
-    if (!ok) { toast("Someone already claimed this one."); return; }
+    const patch = { status: "claimed", claimedBy: me.id, claimedLabel: myLabel(), claimedAt: Date.now() };
+    let got = 0;
+    for (const id of idList(ids)) if (await col.claim(id, patch)) got++;
+    if (!got) { toast("Someone already claimed this one."); return; }
     toast("Claimed. It's in In progress under your name.");
   } catch (e) { fail(e); }
 }
-async function finish(id) {
+async function finish(ids) {
   if (needName()) return;
   try {
-    await col.doc(id).update({ status: "done", doneBy: me.id, doneLabel: myLabel(), doneAt: Date.now() });
+    const t = Date.now();
+    for (const id of idList(ids)) await col.doc(id).update({ status: "done", doneBy: me.id, doneLabel: myLabel(), doneAt: t });
     toast("Marked finished.");
   } catch (e) { fail(e); }
 }
-async function release(id) {
+async function release(ids) {
   try {
-    await col.doc(id).update({ status: "new", claimedBy: null, claimedLabel: null, claimedAt: null });
+    for (const id of idList(ids)) await col.doc(id).update({ status: "new", claimedBy: null, claimedLabel: null, claimedAt: null });
     toast("Unclaimed. It's back in Unclaimed for anyone to pick up.");
   } catch (e) { fail(e); }
 }
-async function reopen(id) {
-  const d = find(id); if (!d) return;
+async function reopen(ids) {
   try {
-    await col.doc(id).update({ status: d.claimedBy || d.claimedLabel ? "claimed" : "new", doneBy: null, doneLabel: null, doneAt: null });
+    for (const id of idList(ids)) {
+      const d = find(id); if (!d) continue;
+      await col.doc(id).update({ status: d.claimedBy || d.claimedLabel ? "claimed" : "new", doneBy: null, doneLabel: null, doneAt: null });
+    }
     toast("Reopened.");
   } catch (e) { fail(e); }
 }
-async function removeDoc(id) {
-  try { await col.doc(id).delete(); $("detDlg").close(); toast("Removed."); } catch (e) { fail(e); }
+async function removeDoc(ids) {
+  try { for (const id of idList(ids)) await col.doc(id).delete(); $("detDlg").close(); toast("Removed."); } catch (e) { fail(e); }
 }
 
 // Where each source lives. A link pasted on the call wins; otherwise open the source's inbox.
@@ -336,7 +346,7 @@ function openLink(d, cls, text, onclick) {
   const t = target(d);
   return h("a", { class: cls, href: t.href, target: "_blank", rel: "noopener", text: text || t.label, onclick });
 }
-const claimAndGo = (d) => (ev) => { if (needName()) { ev.preventDefault(); return; } claim(d.id); };
+const claimAndGo = (d) => (ev) => { if (needName()) { ev.preventDefault(); return; } claim(d.ids || d.id); };
 // Categories, in display order. A call is sorted by keywords in what they need
 // unless someone picks a category by hand.
 const CATEGORIES = {
@@ -351,17 +361,43 @@ const KEYWORDS = [
   ["prices", /(\$\s?\d)|\b(price\w*|cost\w*|how much|quote\w*|value\w*|worth|offer\w*|apprais\w*|comps?|msrp|discount\w*|deal|cheap\w*|expensive|buy ?list|trade[- ]?in|sell(ing)?|buy(ing)? (my|a|his|her|their)? ?collection\w*|collections?)\b/i]
 ];
 function autoCategory(d) {
-  const text = [d.summary, d.contact].filter(Boolean).join(" ");
+  const text = [d.allText || d.summary, d.contact].filter(Boolean).join(" ");
   for (const [key, re] of KEYWORDS) if (re.test(text)) return key;
   return "general";
 }
 function category(d) { return CATEGORIES[d.category] ? d.category : autoCategory(d); }
+// Texts from the same number, on the same line and with the same status,
+// show as one row. Actions on that row apply to every text in it.
+const phoneDigits = (r) => (r || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+function groupTexts(list) {
+  const out = [], byKey = new Map();
+  for (const d of list) {
+    const digits = phoneDigits(d.reach);
+    if (d.line !== "text" || digits.length !== 10) { out.push(Object.assign({}, d, { ids: [d.id], parts: [d], firstAt: d.createdAt })); continue; }
+    const key = d.source + "|" + digits + "|" + d.status;
+    let g = byKey.get(key);
+    if (!g) { g = { parts: [] }; byKey.set(key, g); out.push(g); }
+    g.parts.push(d);
+  }
+  return out.map((g) => {
+    if (g.ids) return g;
+    const parts = g.parts.sort((a, b) => a.createdAt - b.createdAt), last = parts[parts.length - 1];
+    return Object.assign({}, last, {
+      ids: parts.map((p) => p.id), parts, firstAt: parts[0].createdAt,
+      category: (parts.slice().reverse().find((p) => CATEGORIES[p.category]) || {}).category || null,
+      allText: parts.map((p) => p.summary || "").join(" "),
+      notes: parts.flatMap((p) => p.notes || []).sort((x, y) => (x.t || 0) - (y.t || 0))
+    });
+  });
+}
+let shownGroups = [];
+function groupOf(id) { return shownGroups.find((g) => g.ids.includes(id)) || null; }
 const STATUS = { new: "Unclaimed", claimed: "In progress", done: "Finished" };
 function row(d, i) {
   const s = SOURCES[d.source] || { c: "var(--muted)" };
   let act = null;
   if (!readOnly && d.status === "new") act = openLink(d, "btn primary", "Claim & open", claimAndGo(d));
-  else if (!readOnly && d.status === "claimed") act = h("div", { class: "acts2" }, openLink(d, "btn", "Open"), h("button", { class: "btn", type: "button", text: "Mark finished", onclick: () => finish(d.id) }), h("button", { class: "btn quiet", type: "button", text: "Unclaim", onclick: () => release(d.id) }));
+  else if (!readOnly && d.status === "claimed") act = h("div", { class: "acts2" }, openLink(d, "btn", "Open"), h("button", { class: "btn", type: "button", text: "Mark finished", onclick: () => finish(d.ids) }), h("button", { class: "btn quiet", type: "button", text: "Unclaim", onclick: () => release(d.ids) }));
   else act = openLink(d, "btn quiet", "Open");
   const person = (id, label, t) => t ? [who(id, label), h("small", { text: when(t) })] : "";
   return h("tr", { class: "is-" + d.status },
@@ -369,7 +405,9 @@ function row(d, i) {
     h("td", null, h("span", { class: "state " + d.status, text: STATUS[d.status] || d.status })),
     h("td", null, h("span", { class: "tag", style: "--c:" + s.c }, h("span", { class: "dot" }), sourceLabel(d))),
     h("td", { class: "nowrap", text: d.reach || "" }),
-    h("td", { class: "need" }, h("button", { class: "sum", type: "button", text: d.summary || "(no details)", onclick: () => openDetail(d.id) })),
+    h("td", { class: "need" },
+      d.ids.length > 1 ? h("span", { class: "count", text: d.ids.length + " texts" }) : null,
+      h("button", { class: "sum", type: "button", text: d.summary || "(no details)", onclick: () => openDetail(d.id) })),
     h("td", { text: when(d.createdAt) }),
     h("td", null, d.status === "new" ? "" : person(d.claimedBy, d.claimedLabel, d.claimedAt)),
     h("td", null, person(d.doneBy, d.doneLabel, d.doneAt)),
@@ -386,9 +424,11 @@ async function render() {
   }
   const isMine = (d) => (me.id && (d.claimedBy === me.id || d.doneBy === me.id));
   const pass = (d) => (filter === "all" || d.source === filter) && (!mineOnly || isMine(d));
-  const nw = openDocs.filter((d) => d.status === "new").sort((a, b) => a.createdAt - b.createdAt);
-  const pg = openDocs.filter((d) => d.status === "claimed").sort((a, b) => (a.claimedAt || 0) - (b.claimedAt || 0));
-  const dn = doneDocs.slice().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const openRows = groupTexts(openDocs), doneRows = groupTexts(doneDocs);
+  const nw = openRows.filter((d) => d.status === "new").sort((a, b) => a.firstAt - b.firstAt);
+  const pg = openRows.filter((d) => d.status === "claimed").sort((a, b) => (a.claimedAt || 0) - (b.claimedAt || 0));
+  const dn = doneRows.slice().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  shownGroups = openRows.concat(doneRows);
 
   // status strip (whole board, ignores filters)
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
@@ -401,12 +441,12 @@ async function render() {
   const chip = (key, label, n, c) => h("button", { class: "chip", type: "button", "aria-pressed": String(filter === key),
     onclick: () => { filter = key; store("wib-filter", key); render(); } },
     c ? h("span", { class: "dot", style: "--c:" + c }) : null, label, h("span", { class: "n", text: n }));
-  f.append(chip("all", "All lines", openDocs.length));
-  for (const k in SOURCES) f.append(chip(k, SOURCES[k].label, openDocs.filter((d) => d.source === k).length, SOURCES[k].c));
+  f.append(chip("all", "All lines", openRows.length));
+  for (const k in SOURCES) f.append(chip(k, SOURCES[k].label, openRows.filter((d) => d.source === k).length, SOURCES[k].c));
 
   f.append(h("span", { class: "gap" }));
   const sc = (key, label, n) => h("button", { class: "chip", type: "button", "aria-pressed": String(statusFilter === key), onclick: () => { statusFilter = key; render(); } }, label, h("span", { class: "n", text: n }));
-  f.append(sc("all", "All statuses", docs.length), sc("new", "Unclaimed", nw.length), sc("claimed", "In progress", pg.length), sc("done", "Finished", dn.length));
+  f.append(sc("all", "All statuses", shownGroups.length), sc("new", "Unclaimed", nw.length), sc("claimed", "In progress", pg.length), sc("done", "Finished", dn.length));
   if (me.id) f.append(h("button", { class: "chip", type: "button", "aria-pressed": String(mineOnly), text: "Only mine", onclick: () => { mineOnly = !mineOnly; render(); } }));
 
   // sheet rows: unclaimed first (oldest on top), then in progress, then finished
@@ -433,7 +473,7 @@ async function render() {
 
 function openDetail(id) { detailId = id; removeArmed = false; $("noteText").value = ""; drawDetail(); if (!$("detDlg").open) $("detDlg").showModal(); }
 function drawDetail() {
-  const d = find(detailId), body = $("detBody"), acts = $("detActs");
+  const d = groupOf(detailId) || (find(detailId) && Object.assign({}, find(detailId), { ids: [detailId], parts: [find(detailId)] })), body = $("detBody"), acts = $("detActs");
   body.textContent = ""; acts.textContent = "";
   const close = h("button", { class: "btn", type: "button", text: "Close", onclick: () => $("detDlg").close() });
   if (!d) { body.append(h("p", { class: "empty", text: "This call was removed or has aged off the Finished list." })); acts.append(close); return; }
@@ -455,7 +495,10 @@ function drawDetail() {
           return sel;
         })()),
     d.reach ? h("div", { class: "field" }, h("span", { class: "lbl", text: "Caller number" }), h("span", { class: "body-text", style: "user-select:all", text: d.reach })) : null,
-    h("div", { class: "field" }, h("span", { class: "lbl", text: "What they called about" }), h("div", { class: "body-text", text: d.summary || "" })),
+    d.parts.length > 1
+      ? h("div", { class: "field" }, h("span", { class: "lbl", text: d.parts.length + " texts, oldest first" }),
+          h("div", { class: "msgs" }, d.parts.map((p) => h("div", { class: "msg" }, h("span", { text: p.summary || "" }), h("small", { text: when(p.createdAt) })))))
+      : h("div", { class: "field" }, h("span", { class: "lbl", text: "What they called about" }), h("div", { class: "body-text", text: d.summary || "" })),
     h("div", { class: "who", text: "Logged " + when(d.createdAt) + " by " + who(d.createdBy, d.createdLabel)
       + (d.claimedAt ? " · claimed " + when(d.claimedAt) : "") + (d.doneAt ? " · finished " + when(d.doneAt) : "") }));
   const notes = d.notes || [];
@@ -464,11 +507,11 @@ function drawDetail() {
   if (!readOnly) {
     if (d.status === "new") acts.append(openLink(d, "btn primary", "Claim & open", claimAndGo(d)));
     if (d.status === "claimed") acts.append(
-      h("button", { class: "btn", type: "button", text: "Unclaim", onclick: () => release(d.id) }),
-      h("button", { class: "btn primary", type: "button", text: "Mark finished", onclick: () => finish(d.id) }));
-    if (d.status === "done") acts.append(h("button", { class: "btn", type: "button", text: "Reopen", onclick: () => reopen(d.id) }));
+      h("button", { class: "btn", type: "button", text: "Unclaim", onclick: () => release(d.ids) }),
+      h("button", { class: "btn primary", type: "button", text: "Mark finished", onclick: () => finish(d.ids) }));
+    if (d.status === "done") acts.append(h("button", { class: "btn", type: "button", text: "Reopen", onclick: () => reopen(d.ids) }));
     acts.prepend(h("button", { class: "btn quiet danger", type: "button", text: removeArmed ? "Confirm remove" : "Remove",
-      onclick: () => { if (removeArmed) removeDoc(d.id); else { removeArmed = true; drawDetail(); } } }));
+      onclick: () => { if (removeArmed) removeDoc(d.ids); else { removeArmed = true; drawDetail(); } } }));
   }
   if (readOnly || d.status !== "new") acts.append(openLink(d, "btn"));
   acts.append(close);
@@ -520,6 +563,8 @@ function startDemo() {
     { id: "example-3", source: "flagship", line: "voicemail", contact: "Example Caller C", reach: "484-555-0119", summary: "EXAMPLE: Wants to know when their PSA submission will be back.", status: "claimed", createdAt: t - 140 * m, claimedLabel: "Example Staff 1", claimedAt: t - 110 * m,
       notes: [{ t: t - 100 * m, by: null, label: "Example Staff 1", text: "Called back, left a message. Will try again after 3." }] },
     { id: "example-4", source: "ardmore", line: "text", contact: "Example Caller D", reach: "610-555-0187", summary: "EXAMPLE: Texted that the card they bought was damaged in the top loader and wants it replaced.", status: "new", createdAt: t - 25 * m },
+    { id: "example-4b", source: "ardmore", line: "text", contact: "Example Caller D", reach: "610-555-0187", summary: "EXAMPLE: Sending a photo of the corner now.", status: "new", createdAt: t - 22 * m },
+    { id: "example-4c", source: "ardmore", line: "text", contact: "Example Caller D", reach: "610-555-0187", summary: "EXAMPLE: Can someone get back to me today?", status: "new", createdAt: t - 9 * m },
     { id: "example-5", source: "west", line: "voicemail", contact: "Example Caller E", reach: "610-555-0152", summary: "EXAMPLE: Asked about store hours on Sunday.", status: "done", createdAt: t - 400 * m, claimedLabel: "Example Staff 2", claimedAt: t - 380 * m, doneLabel: "Example Staff 2", doneAt: t - 360 * m }
   ].map((d) => [d.id, { ...base, ...d }]));
   const emit = () => {
